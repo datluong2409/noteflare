@@ -40,7 +40,7 @@
     // Optional second lock on top of the Access policy: emails or "@domain", comma-separated.
     "ALLOWED_EMAILS": "",
     // Where to look for new releases ("owner/repo"). Use your fork, or "off" to disable.
-    "UPDATE_CHECK_REPO": "homielab/noteflare"
+    "UPDATE_CHECK_REPO": "datluong2409/noteflare"
   },
 
   // Empty the trash: permanently delete notes trashed more than 30 days ago
