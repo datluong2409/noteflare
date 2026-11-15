@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils'
 import { useVault } from '@/lib/vault'
 import { emptyNote, isEmptyNote, useNotes, type Note, type NotePatch } from '@/lib/notes'
 import { prefersReducedMotion, transition, VT_CLASS, vtName } from '@/lib/motion'
+import { primeKeyboard } from '@/lib/viewport'
 import { LANGS, useI18n } from '@/i18n'
 import { useTheme } from '@/hooks/useTheme'
 import { useInstallPrompt } from '@/lib/pwa'
@@ -171,6 +172,7 @@ export function Notebook({ dek }: { dek: CryptoKey }) {
     const n = emptyNote()
     if (view.kind === 'label') n.labels = [view.label]
     if (view.kind === 'archive') n.archived = true
+    primeKeyboard() // the editor mounts after this tap's event ends; iOS needs the focus now
     transition(() => setEditing(n))
   }
 

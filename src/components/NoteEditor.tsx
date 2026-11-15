@@ -8,6 +8,7 @@ import { Tooltip } from '@/components/ui/tooltip'
 import { continueList, indentLines, toggleChecklist, type Edit } from '@/lib/editing'
 import { isEmptyNote, toggleTask, type Note, type NotePatch } from '@/lib/notes'
 import { supportsViewTransitions, VT_CLASS } from '@/lib/motion'
+import { primeKeyboard } from '@/lib/viewport'
 import { dateLocale, useI18n } from '@/i18n'
 import { NoteMarkdown } from './NoteMarkdown'
 import { NoteActions, PinButton } from './NoteActions'
@@ -59,6 +60,7 @@ export function NoteEditor({ note, transitionName, allLabels, saveState, onSave,
     })
 
   const edit = (mode: 'edit' | 'preview') => {
+    if (mode === 'edit') primeKeyboard() // keep focus() inside the tap, or iOS shows no keyboard
     setPreview(mode === 'preview')
     if (mode === 'edit') focusBody()
   }
@@ -66,6 +68,7 @@ export function NoteEditor({ note, transitionName, allLabels, saveState, onSave,
   const checklist = () => {
     const el = bodyRef.current
     if (preview || !el) {
+      primeKeyboard()
       setPreview(false)
       requestAnimationFrame(() => {
         const t = bodyRef.current

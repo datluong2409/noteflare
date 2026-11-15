@@ -70,4 +70,39 @@ function revealFocused() {
   el.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
 }
 
+let keyboardPrimer: HTMLInputElement | null = null
+
+/**
+ * iOS only raises the keyboard for a `focus()` that runs synchronously inside the tap's own
+ * event. Our editor mounts later (inside a View Transition callback, or a requestAnimationFrame),
+ * so focusing the textarea there leaves it focused but keyboard-less.
+ *
+ * Call this synchronously from the tap handler: it focuses an invisible input right away, which
+ * opens the keyboard. When the real field is focused a moment later the keyboard stays up.
+ * If nothing takes over, the primer is blurred so the keyboard doesn't hang around.
+ */
+export function primeKeyboard() {
+  if (typeof document === 'undefined' || !isCoarsePointer()) return
+  const el = document.activeElement
+  if (el && el !== document.body && isTypingTarget(el as HTMLElement)) return // keyboard is already up
+  if (!keyboardPrimer) {
+    const input = document.createElement('input')
+    input.setAttribute('aria-hidden', 'true')
+    input.tabIndex = -1
+    input.autocomplete = 'off'
+    // 16px stops iOS zooming in; fixed at the top-left so focusing it never scrolls the page.
+    input.style.cssText = 'position:fixed;top:0;left:0;width:1px;height:1px;opacity:0;border:0;padding:0;font-size:16px;pointer-events:none'
+    document.body.appendChild(input)
+    keyboardPrimer = input
+  }
+  const primer = keyboardPrimer
+  primer.focus({ preventScroll: true })
+  setTimeout(() => {
+    if (document.activeElement === primer) primer.blur()
+  }, 1000)
+}
+
+const isTypingTarget = (el: HTMLElement) =>
+  el.isContentEditable || el.tagName === 'TEXTAREA' || (el.tagName === 'INPUT' && el !== keyboardPrimer)
+
 export const isCoarsePointer = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches
