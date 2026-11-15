@@ -1,13 +1,15 @@
 /**
  * On-device cache in IndexedDB. It holds exactly what the server holds —
  * ciphertext and the wrapped vault keys — plus the queue of changes not yet
- * synced. Nothing here is readable without the passphrase.
+ * synced. Nothing here is readable without the passphrase, unless the user chose
+ * "stay unlocked": then the (non-extractable) vault key is kept here until it expires.
  *
  * If IndexedDB isn't available (some private modes), every call degrades to a
  * no-op and NoteFlare simply runs online-only.
  */
 import { deleteDB, openDB, type DBSchema, type IDBPDatabase } from 'idb'
 import type { EncryptedNote, PutNoteBody, VaultRecord } from '../../../shared/types'
+import type { RememberedKey } from '../remember'
 
 export type OutboxEntry =
   | {
@@ -38,6 +40,10 @@ export interface LocalStore {
   setMeta(patch: Partial<Meta>): Promise<void>
   getVault(): Promise<VaultRecord | null>
   setVault(v: VaultRecord): Promise<void>
+  /** The vault key kept for "stay unlocked on this device", if any. Wiped by clear() and destroy(). */
+  getRemembered(): Promise<RememberedKey | null>
+  setRemembered(r: RememberedKey): Promise<void>
+  clearRemembered(): Promise<void>
   allNotes(): Promise<EncryptedNote[]>
   putNotes(rows: EncryptedNote[]): Promise<void>
   deleteNotes(ids: string[]): Promise<void>
@@ -95,6 +101,9 @@ export function createLocalStore(name = 'noteflare'): LocalStore {
       }),
     getVault: () => run(null, async (d) => ((await d.get('kv', 'vault')) as VaultRecord | undefined) ?? null),
     setVault: (v) => run(undefined, async (d) => void (await d.put('kv', v, 'vault'))),
+    getRemembered: () => run(null, async (d) => ((await d.get('kv', 'remembered')) as RememberedKey | undefined) ?? null),
+    setRemembered: (r) => run(undefined, async (d) => void (await d.put('kv', r, 'remembered'))),
+    clearRemembered: () => run(undefined, (d) => d.delete('kv', 'remembered')),
     allNotes: () => run([], (d) => d.getAll('notes')),
     putNotes: (rows) =>
       run(undefined, async (d) => {

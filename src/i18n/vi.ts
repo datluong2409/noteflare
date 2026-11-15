@@ -46,6 +46,13 @@ export const vi: Record<MessageKey, string> = {
   'unlock.newTooShort': 'Passphrase mới cần ít nhất {n} ký tự.',
   'unlock.decrypting': 'Đang giải mã…',
   'unlock.unlock': 'Mở khoá',
+  'unlock.remember': 'Giữ mở khoá trên máy này',
+  'unlock.rememberFor': 'Giữ mở khoá trong',
+  'unlock.rememberHint':
+    'Ai dùng được máy này đều mở được ghi chú của bạn cho đến hết hạn, và không có tự động khoá. "Khoá ngay" hoặc đăng xuất sẽ kết thúc việc này.',
+  'unlock.remember.7d': '7 ngày',
+  'unlock.remember.30d': '1 tháng',
+  'unlock.remember.forever': 'Vĩnh viễn (đến khi tôi khoá)',
   'unlock.resetAndUnlock': 'Đặt passphrase mới và mở khoá',
   'unlock.forgot': 'Quên passphrase?',
   'unlock.usePassphrase': 'Dùng passphrase',

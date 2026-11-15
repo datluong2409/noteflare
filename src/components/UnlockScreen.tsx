@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input'
 import { useVault } from '@/lib/vault'
 import { UnsafeKdfError, WrongSecretError } from '@/lib/crypto'
 import { cipherNoise } from '@/lib/motion'
+import { REMEMBER_OPTIONS, type RememberFor } from '@/lib/remember'
 import { ApiError } from '@/lib/api'
 import { preloadAfterLockScreen } from '@/lib/lazy'
 import { t as translate, useI18n } from '@/i18n'
@@ -198,6 +199,8 @@ function LockedFlow() {
   const [next, setNext] = useState('')
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  const [keep, setKeep] = useState(false)
+  const [keepFor, setKeepFor] = useState<RememberFor>('30d')
 
   const submit = async (e: FormEvent) => {
     e.preventDefault()
@@ -206,11 +209,11 @@ function LockedFlow() {
     try {
       if (mode === 'pass') {
         if (!pass) throw new InputError(t('unlock.enterPassphrase'))
-        await unlock(pass)
+        await unlock(pass, keep ? keepFor : null)
       } else {
         if (!code.trim()) throw new InputError(t('unlock.enterRecoveryCode'))
         if (next.length < MIN_PASSPHRASE) throw new InputError(t('unlock.newTooShort', { n: MIN_PASSPHRASE }))
-        await recover(code, next)
+        await recover(code, next, keep ? keepFor : null)
       }
     } catch (err) {
       setError(err instanceof InputError ? err.message : messageOf(err))
@@ -259,6 +262,34 @@ function LockedFlow() {
             />
           </>
         )}
+        <div className="grid gap-2">
+          <label className="flex items-center gap-3 text-sm">
+            <input
+              type="checkbox"
+              checked={keep}
+              onChange={(e) => setKeep(e.target.checked)}
+              className="size-4 accent-[var(--primary)]"
+            />
+            {t('unlock.remember')}
+          </label>
+          {keep && (
+            <>
+              <select
+                aria-label={t('unlock.rememberFor')}
+                value={keepFor}
+                onChange={(e) => setKeepFor(e.target.value as RememberFor)}
+                className="h-11 rounded-md border bg-surface px-3 text-base"
+              >
+                {REMEMBER_OPTIONS.map((o) => (
+                  <option key={o} value={o}>
+                    {t(`unlock.remember.${o}` as const)}
+                  </option>
+                ))}
+              </select>
+              <p className="text-sm text-muted-foreground">{t('unlock.rememberHint')}</p>
+            </>
+          )}
+        </div>
         {error && <ErrorText>{error}</ErrorText>}
         <Button size="lg" type="submit" disabled={busy}>
           <LockKeyhole />

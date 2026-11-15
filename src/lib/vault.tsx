@@ -6,6 +6,7 @@ import { keepOfflineCopy } from './pwa'
 import { transition } from './motion'
 import { watchIdle } from './idleLock'
 import { createVault, rewrapVault, unlockWithPassphrase, unlockWithRecovery } from './crypto'
+import { expiryFor, stillValid, type RememberFor } from './remember'
 
 const IDLE_LOCK_MS = 15 * 60 * 1000
 const SIGN_OUT_CHANNEL = 'noteflare:sign-out'
@@ -47,12 +48,15 @@ interface VaultState {
   /** This deployment can store encrypted image attachments. Unknown (false) while offline. */
   attachments: boolean
   dek: CryptoKey | null
+  /** The key is kept on this device ("stay unlocked"), so there is no idle auto-lock. */
+  remembered: boolean
   /** Create a vault and return the recovery code for the user to store. */
   setup(passphrase: string): Promise<string>
   /** Call once the user confirms they saved the recovery code. */
   finishSetup(): void
-  unlock(passphrase: string): Promise<void>
-  recover(code: string, newPassphrase: string): Promise<void>
+  /** `remember`: keep the vault key on this device for that long, so the next start skips the passphrase. */
+  unlock(passphrase: string, remember?: RememberFor | null): Promise<void>
+  recover(code: string, newPassphrase: string, remember?: RememberFor | null): Promise<void>
   changePassphrase(current: string, next: string): Promise<void>
   lock(): void
   /** Sign out of Cloudflare Access and remove everything NoteFlare stored on this device. */
@@ -67,8 +71,24 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [offline, setOffline] = useState(false)
   const [attachments, setAttachments] = useState(false)
   const [dek, setDek] = useState<CryptoKey | null>(null)
+  const [remembered, setRemembered] = useState(false)
   const record = useRef<VaultRecord | null>(null)
   const pendingDek = useRef<CryptoKey | null>(null)
+
+  /** Start unlocked when this device was told to keep the key and it hasn't expired. */
+  const restoreRemembered = async (accountEmail: string) => {
+    const rec = await localStore.getRemembered()
+    if (!rec) return false
+    if (!stillValid(rec, accountEmail)) {
+      await localStore.clearRemembered()
+      return false
+    }
+    keepOfflineCopy()
+    setDek(rec.key)
+    setRemembered(true)
+    setStatus('unlocked')
+    return true
+  }
 
   useEffect(() => {
     ;(async () => {
@@ -83,6 +103,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
         if (!me.hasVault) return setStatus('setup')
         record.current = await api.getVault()
         await localStore.setVault(record.current)
+        if (await restoreRemembered(me.email)) return
         setStatus('locked')
       } catch (e) {
         if (e instanceof ApiError) {
@@ -96,6 +117,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
           record.current = vault
           setEmail(cached.email)
           setOffline(true)
+          if (await restoreRemembered(cached.email)) return
           setStatus('locked')
         } else {
           setStatus('offline-empty')
@@ -105,6 +127,8 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   }, [])
 
   const lock = useCallback(() => {
+    void localStore.clearRemembered() // locking by hand also forgets the key kept on this device
+    setRemembered(false)
     setDek(null)
     pendingDek.current = null
     setStatus((s) => (s === 'unlocked' ? 'locked' : s))
@@ -112,9 +136,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   // Auto-lock when idle.
   useEffect(() => {
-    if (status !== 'unlocked') return
+    // A key kept on this device is the user's choice to stay unlocked: only locking by hand ends it.
+    if (status !== 'unlocked' || remembered) return
     return watchIdle(IDLE_LOCK_MS, lock)
-  }, [status, lock])
+  }, [status, remembered, lock])
 
   const setup = useCallback(async (passphrase: string) => {
     const created = await createVault(passphrase)
@@ -137,11 +162,25 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     })
   }, [])
 
-  const unlock = useCallback(async (passphrase: string) => {
+  /** Keep (or stop keeping) the key on this device. Resolves to whether it is now kept. */
+  const keepKey = async (key: CryptoKey, choice?: RememberFor | null) => {
+    if (!choice) {
+      await localStore.clearRemembered()
+      return false
+    }
+    const email = (await localStore.getMeta())?.email
+    if (!email) return false
+    await localStore.setRemembered({ key, email, expiresAt: expiryFor(choice) })
+    return !!(await localStore.getRemembered()) // storage can be unavailable: don't claim what didn't stick
+  }
+
+  const unlock = useCallback(async (passphrase: string, remember?: RememberFor | null) => {
     if (!record.current) record.current = await api.getVault()
     const key = await unlockWithPassphrase(record.current, passphrase)
     keepOfflineCopy()
+    const kept = await keepKey(key, remember)
     transition(() => {
+      setRemembered(kept)
       setDek(key)
       setStatus('unlocked')
     })
@@ -160,11 +199,13 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   )
 
   const recover = useCallback(
-    async (code: string, newPassphrase: string) => {
+    async (code: string, newPassphrase: string, remember?: RememberFor | null) => {
       if (!record.current) record.current = await api.getVault()
       await unlockWithRecovery(record.current, code) // check the code first
       const key = await saveRewrap({ recoveryCode: code }, newPassphrase)
+      const kept = await keepKey(key, remember)
       transition(() => {
+        setRemembered(kept)
         setDek(key)
         setStatus('unlocked')
       })
@@ -202,7 +243,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   return (
     <VaultContext.Provider
-      value={{ status, email, offline, attachments, dek, setup, finishSetup, unlock, recover, changePassphrase, lock, signOut }}
+      value={{ status, email, offline, attachments, dek, remembered, setup, finishSetup, unlock, recover, changePassphrase, lock, signOut }}
     >
       {children}
     </VaultContext.Provider>

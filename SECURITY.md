@@ -89,7 +89,7 @@ Tokens are accepted only on `/api/v1`, never as cookies, so they can't be used f
 - A random 256-bit data key, wrapped with **AES-256-GCM** under each of those keys.
 - Each note: **AES-256-GCM** with a random 96-bit IV and AAD `note:<id>`.
 - Each attached image: **AES-256-GCM** with a random 96-bit IV and AAD `blob:<id>`; the file type is inside the ciphertext.
-- In the browser the data key is a non-extractable `CryptoKey` held only in memory.
+- In the browser the data key is a non-extractable `CryptoKey` held only in memory, unless the user opts in to "Keep me unlocked on this device": then the same non-extractable key is stored in IndexedDB until it expires (7 days, 1 month or until locked). Locking by hand, signing out and an account change delete it; the passphrase is never stored.
 - Random 96-bit IVs are safe for far more saves than a person makes (the limit is around 2³² encryptions per key).
 
 The implementation lives in [`packages/client/src/crypto.ts`](packages/client/src/crypto.ts), about 250 lines using WebCrypto and `hash-wasm`. **It has not been independently audited.** Review is very welcome; findings go through the private report above.

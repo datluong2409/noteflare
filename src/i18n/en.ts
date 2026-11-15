@@ -44,6 +44,13 @@ export const en = {
   'unlock.newTooShort': 'Your new passphrase needs at least {n} characters.',
   'unlock.decrypting': 'Decrypting…',
   'unlock.unlock': 'Unlock',
+  'unlock.remember': 'Keep me unlocked on this device',
+  'unlock.rememberFor': 'Keep unlocked for',
+  'unlock.rememberHint':
+    'Anyone who can use this device can open your notes until then, and there is no auto-lock. Lock now or sign out ends it.',
+  'unlock.remember.7d': '7 days',
+  'unlock.remember.30d': '1 month',
+  'unlock.remember.forever': 'Until I lock it',
   'unlock.resetAndUnlock': 'Set new passphrase and unlock',
   'unlock.forgot': 'Forgot passphrase?',
   'unlock.usePassphrase': 'Use passphrase',

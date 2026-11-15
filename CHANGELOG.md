@@ -4,6 +4,10 @@ All notable changes to NoteFlare are recorded here. The format follows [Keep a C
 
 ## [Unreleased]
 
+### Added
+
+- "Keep me unlocked on this device" on the unlock screen: choose 7 days, 1 month or until you lock it, and the app opens without the passphrase. Off by default; auto-lock is off while it is on, and Lock now or signing out ends it.
+
 ### Fixed
 
 - On iPhone, tapping New note, or the text of a note you are reading, now opens the keyboard in the installed app.

@@ -40,7 +40,7 @@ A simple, private, serverless notes app — end-to-end encrypted, completely fre
 - 📱 **Install it, use it offline**: add NoteFlare to your home screen like an app. Read, write and unlock without a connection; changes sync when you're back.
 - 🔀 **Smart multi-device sync**: edits from two devices to the same note are merged line by line, like `git merge`. Only a true clash (same line, different text) becomes a separate copy.
 - 🗝️ **Recovery code**: forget your passphrase without losing your notes, and change it without re-encrypting anything.
-- 🔒 **Auto-lock**: keys are wiped from memory after 15 minutes idle or with one click.
+- 🔒 **Auto-lock**: keys are wiped from memory after 15 minutes idle or with one click. Optionally keep a device unlocked for 7 days, 1 month or until you lock it (off by default).
 - ✍️ **A Markdown editor that helps**: lists and checklists continue when you press Enter, Tab indents, and one tap turns lines into a checklist.
 - 🌗 **Light and dark, grid or list, mobile-ready**, keyboard shortcuts (press `?` to see them) and reduced-motion support.
 - 🔄 **Update notices and release notes in the app**, checked by your own Worker, with no tracking.
@@ -174,7 +174,7 @@ random 256-bit DEK ──AES-GCM, AAD = "note:<id>"──► note ciphertext    
 ```
 
 - Your passphrase, the data key (DEK) and note content never leave the browser unencrypted. Titles, bodies, labels and colors are all inside the ciphertext; only `pinned`, `archived`, `trashed_at`, `position` and timestamps are plaintext so notes can be sorted.
-- In a session the DEK is a **non-extractable** `CryptoKey` kept in memory only. Locking discards it.
+- In a session the DEK is a **non-extractable** `CryptoKey` kept in memory only. Locking discards it. If you tick "Keep me unlocked on this device" when unlocking, that key is also kept in IndexedDB until it expires (7 days, 1 month or until you lock); anyone who can use that browser profile can then open your notes, and auto-lock is off. Lock now and signing out delete it. The passphrase is never stored.
 - The offline copy on your device holds the same ciphertext and wrapped keys as the server. Signing out deletes it.
 - Each note's ciphertext is bound to its id, so the server can't swap content between notes.
 - The client rejects Argon2 parameters below a safe floor, so a malicious server can't downgrade the KDF.
