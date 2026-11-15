@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyEdit, continueList, indentLines, toggleBullets, toggleChecklist, type Edit } from '../src/lib/editing'
+import { applyEdit, continueList, indentLines, removeMarker, toggleBullets, toggleChecklist, type Edit } from '../src/lib/editing'
 
 /** Runs an edit on text with "|" marking the cursor (or two "|" a selection) and returns the result with markers. */
 function run(marked: string, fn: (v: string, s: number, e: number) => Edit | null) {
@@ -83,5 +83,29 @@ describe('toggleBullets', () => {
   })
   it('starts an empty bullet on an empty line', () => {
     expect(run('|', toggleBullets)).toBe('- |')
+  })
+})
+
+describe('removeMarker', () => {
+  it('deletes a whole checkbox when backspacing right after it', () => {
+    expect(run('a\n- [ ] |', removeMarker)).toBe('a\n|')
+    expect(run('- [x] |done', removeMarker)).toBe('|done')
+    expect(run('  - [ ] |b', removeMarker)).toBe('  |b')
+  })
+  it('handles a checkbox with no space after it yet', () => {
+    expect(run('- [ ]|', removeMarker)).toBe('|')
+  })
+  it('deletes bullets and numbers the same way', () => {
+    expect(run('- |x', removeMarker)).toBe('|x')
+    expect(run('12. |x', removeMarker)).toBe('|x')
+  })
+  it('deletes the marker when the cursor is inside it', () => {
+    expect(run('- [| ] a', removeMarker)).toBe('|a')
+  })
+  it('leaves normal backspacing alone', () => {
+    expect(run('- [ ] ab|', removeMarker)).toBeNull()
+    expect(run('|- [ ] a', removeMarker)).toBeNull()
+    expect(run('plain|', removeMarker)).toBeNull()
+    expect(run('|- a|', removeMarker)).toBeNull()
   })
 })

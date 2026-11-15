@@ -1,4 +1,4 @@
-import { useRef, useState, type ComponentProps, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ComponentProps, type DragEvent, type KeyboardEvent, type ReactNode } from 'react'
 import {
   Archive,
   ArchiveRestore,
@@ -23,7 +23,7 @@ import { Button } from '@/components/ui/button'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
-import { continueList, indentLines, toggleBullets, toggleChecklist, type Edit } from '@/lib/editing'
+import { continueList, indentLines, removeMarker, toggleBullets, toggleChecklist, type Edit } from '@/lib/editing'
 import { isEmptyNote, type Note, type NotePatch } from '@/lib/notes'
 import { toggleBox } from '@/lib/liveText'
 import { supportsViewTransitions, VT_CLASS } from '@/lib/motion'
@@ -80,6 +80,23 @@ export function NoteEditor({ note, transitionName, allLabels, backLabel, saveSta
   // The newest draft, for work that finishes after an await (image uploads).
   const draftRef = useRef<Note | null>(note)
   draftRef.current = draft
+
+  // Deleting a checkbox or bullet removes its whole marker in one go. This listens to
+  // `beforeinput` rather than the Backspace key: iOS keyboards like Laban Key don't
+  // always send key codes, but every keyboard reports "delete backward" this way.
+  useEffect(() => {
+    const el = bodyRef.current
+    if (!el) return
+    const onBeforeInput = (e: InputEvent) => {
+      if (e.inputType !== 'deleteContentBackward' || e.isComposing) return
+      const edit = removeMarker(el.value, el.selectionStart, el.selectionEnd)
+      if (!edit) return
+      e.preventDefault()
+      applyTo(el, edit)
+    }
+    el.addEventListener('beforeinput', onBeforeInput)
+    return () => el.removeEventListener('beforeinput', onBeforeInput)
+  }, [draft?.id])
 
   /** Enter in the title moves to the end of the text. Runs inside the key event, so the keyboard stays up. */
   const focusBody = () => {
@@ -251,7 +268,7 @@ export function NoteEditor({ note, transitionName, allLabels, backLabel, saveSta
       className={cn(
         'animate-in fade-in-0 duration-200',
         // Phones: the empty space below the text is part of the field, so a tap there types at the end.
-        phone ? 'min-h-[calc(var(--vvh,100dvh)-16rem)] text-[17px] leading-[1.5]' : 'min-h-36 leading-relaxed',
+        phone ? 'min-h-[calc(var(--vvh,100dvh)-16rem)] text-[17px] leading-[1.65]' : 'min-h-36 leading-relaxed',
       )}
     />
   )

@@ -14,7 +14,7 @@ export interface Edit {
   selEnd: number
 }
 
-const LIST_RE = /^(\s*)([-*+]|(\d+)([.)]))(\s+)(\[[ xX]\]\s+)?/
+const LIST_RE = /^(\s*)([-*+]|(\d+)([.)]))(\s+)(\[[ xX]\](?:\s+|$))?/
 
 const lineStart = (v: string, i: number) => v.lastIndexOf('\n', i - 1) + 1
 const lineEnd = (v: string, i: number) => {
@@ -135,6 +135,23 @@ export function toggleBullets(value: string, start: number, end: number): Edit {
     return { from, to, text, selStart: pos, selEnd: pos }
   }
   return { from, to, text, selStart: from, selEnd: from + text.length }
+}
+
+/**
+ * Backspace right after a list marker ("- [ ] ", "- ", "1. "), or with the cursor inside
+ * it, removes the whole marker at once, the way iPhone Notes deletes a checkbox, instead
+ * of leaving "- [" behind one character at a time. Returns null otherwise, so the
+ * keystroke deletes normally.
+ */
+export function removeMarker(value: string, start: number, end: number): Edit | null {
+  if (start !== end) return null
+  const ls = lineStart(value, start)
+  const m = LIST_RE.exec(value.slice(ls, lineEnd(value, start)))
+  if (!m) return null
+  const from = ls + m[1].length
+  const to = ls + m[0].length
+  if (start <= from || start > to) return null
+  return { from, to, text: '', selStart: from, selEnd: from }
 }
 
 /** Applies an edit to a string (used by tests and as a fallback). */
