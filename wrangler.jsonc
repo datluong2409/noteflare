@@ -34,11 +34,11 @@
 
   "vars": {
     // e.g. https://your-team.cloudflareaccess.com
-    "ACCESS_TEAM_DOMAIN": "",
+    "ACCESS_TEAM_DOMAIN": "https://bitter-violet-f591.cloudflareaccess.com",
     // The Access application's "Application Audience (AUD) Tag"
-    "ACCESS_AUD": "",
+    "ACCESS_AUD": "0c9953ffea679c035f0ea8013ddad59e6d4c6649f4bcfb932b5a29c7a0c657f1",
     // Optional second lock on top of the Access policy: emails or "@domain", comma-separated.
-    "ALLOWED_EMAILS": "",
+    "ALLOWED_EMAILS": "mark.dat.code@gmail.com",
     // Where to look for new releases ("owner/repo"). Use your fork, or "off" to disable.
     "UPDATE_CHECK_REPO": "datluong2409/noteflare"
   },
