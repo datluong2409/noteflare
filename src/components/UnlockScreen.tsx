@@ -8,6 +8,7 @@ import { useVault } from '@/lib/vault'
 import { UnsafeKdfError, WrongSecretError } from '@/lib/crypto'
 import { cipherNoise } from '@/lib/motion'
 import { REMEMBER_OPTIONS, type RememberFor } from '@/lib/remember'
+import { isCoarsePointer } from '@/lib/viewport'
 import { ApiError } from '@/lib/api'
 import { preloadAfterLockScreen } from '@/lib/lazy'
 import { t as translate, useI18n } from '@/i18n'
@@ -163,7 +164,7 @@ function SetupFlow() {
           label={t('unlock.passphrase')}
           type="password"
           autoComplete="new-password"
-          autoFocus
+          autoFocus={!isCoarsePointer()}
           value={pass}
           onChange={(e) => setPass(e.target.value)}
           hint={t('unlock.passphraseHint', { n: MIN_PASSPHRASE })}
@@ -237,7 +238,7 @@ function LockedFlow() {
             label={t('unlock.passphrase')}
             type="password"
             autoComplete="current-password"
-            autoFocus
+            autoFocus={!isCoarsePointer()}
             value={pass}
             onChange={(e) => setPass(e.target.value)}
           />
@@ -245,7 +246,7 @@ function LockedFlow() {
           <>
             <Field
               label={t('unlock.recoveryCode')}
-              autoFocus
+              autoFocus={!isCoarsePointer()}
               autoComplete="off"
               spellCheck={false}
               placeholder="XXXXX-XXXXX-XXXXX-XXXXX-XXXXX"
