@@ -7,6 +7,13 @@ All notable changes to NoteFlare are recorded here. The format follows [Keep a C
 ### Added
 
 - "Keep me unlocked on this device" on the unlock screen: choose 7 days, 1 month or until you lock it, and the app opens without the passphrase. Off by default; auto-lock is off while it is on, and Lock now or signing out ends it.
+- Phones get a layout modelled on iPhone Notes: a Folders page (notes, labels, archive, trash), notes listed by last edit under Today, Yesterday, Previous 7 Days and so on, and a compose button in the bottom bar. Swipe a note left to archive or trash it, right to pin it.
+- Checklists look like checklists while you type: "- [ ]" shows as a round checkbox you can tap, done items are struck through, and "- " shows as a bullet. Your notes are still saved as plain Markdown, and Vietnamese keyboards work as before.
+
+### Changed
+
+- Notes open ready to type: the Edit/Preview switch is gone, since checklists now show as checkboxes while you edit. Note cards in the grid still show the formatted note, images included.
+- On phones, the editor is full screen, with Undo, Redo and Done at the top and a toolbar above the keyboard (checklist, bullets, image, labels, color, hide keyboard). Share, pin, archive and trash are in the "⋯" menu. Done now hides the keyboard; the back button returns to the list.
 
 ### Fixed
 

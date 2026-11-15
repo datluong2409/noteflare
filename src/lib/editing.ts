@@ -105,6 +105,38 @@ export function toggleChecklist(value: string, start: number, end: number): Edit
   return { from, to, text, selStart: from, selEnd: from + text.length }
 }
 
+/**
+ * Turns the selected lines into a bulleted list ("- "), or back into plain lines when
+ * they all are bullets already. Checklist items and numbered items become bullets.
+ */
+export function toggleBullets(value: string, start: number, end: number): Edit {
+  const from = lineStart(value, start)
+  const to = lineEnd(value, end > start && value[end - 1] === '\n' ? end - 1 : end)
+  const lines = value.slice(from, to).split('\n')
+  const isBullet = (l: string) => {
+    const m = LIST_RE.exec(l)
+    return !!m && !m[3] && !m[6]
+  }
+  const content = lines.filter((l) => l.trim())
+  const remove = content.length > 0 && content.every(isBullet)
+
+  const out = lines.map((l) => {
+    if (!l.trim() && lines.length > 1) return l
+    const m = LIST_RE.exec(l)
+    if (remove) return m ? m[1] + l.slice(m[0].length) : l
+    if (m) return `${m[1]}- ${l.slice(m[0].length)}`
+    const indent = /^\s*/.exec(l)![0]
+    return `${indent}- ${l.slice(indent.length)}`
+  })
+  const text = out.join('\n')
+  if (start === end) {
+    const delta = text.length - (to - from)
+    const pos = lines.length === 1 ? Math.max(from, start + delta) : from + text.length
+    return { from, to, text, selStart: pos, selEnd: pos }
+  }
+  return { from, to, text, selStart: from, selEnd: from + text.length }
+}
+
 /** Applies an edit to a string (used by tests and as a fallback). */
 export function applyEdit(value: string, e: Edit) {
   return value.slice(0, e.from) + e.text + value.slice(e.to)

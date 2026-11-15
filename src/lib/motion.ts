@@ -46,7 +46,7 @@ export const vtName = (id: string) => `note-${id}`
  * classes later cards would paint over the editor while it grows.
  * Matching z-index rules live in index.css.
  */
-export const VT_CLASS = { card: 'card', fab: 'fab', editor: 'editor' } as const
+export const VT_CLASS = { card: 'card', fab: 'fab', editor: 'editor', sheet: 'sheet' } as const
 
 /**
  * Theme switch: the new theme spreads out in a circle from the button that was pressed.

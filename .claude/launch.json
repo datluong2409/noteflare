@@ -1,0 +1,17 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api-scratch",
+      "runtimeExecutable": "bunx",
+      "runtimeArgs": ["wrangler", "dev", "--port", "8787", "--persist-to", "C:/Users/ENLABG~1/AppData/Local/Temp/claude/e99808eb0338d4d7/757edcca-bcd3-4c0d-beee-1646ad64d81b/scratchpad/d1", "--var", "DEV_USER_EMAIL:preview@example.test", "--var", "ACCESS_TEAM_DOMAIN:", "--var", "ACCESS_AUD:"],
+      "port": 8787
+    },
+    {
+      "name": "web",
+      "runtimeExecutable": "bunx",
+      "runtimeArgs": ["vite", "--port", "5173", "--strictPort"],
+      "port": 5173
+    }
+  ]
+}

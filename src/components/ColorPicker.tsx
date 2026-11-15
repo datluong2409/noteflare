@@ -6,13 +6,13 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuTrigger } from '@/compon
 import { Tooltip } from '@/components/ui/tooltip'
 import { colorVar } from './noteColors'
 
-export function ColorPicker({ value, onChange }: { value: NoteColor; onChange: (c: NoteColor) => void }) {
+export function ColorPicker({ value, onChange, className }: { value: NoteColor; onChange: (c: NoteColor) => void; className?: string }) {
   const { t } = useI18n()
   return (
     <DropdownMenu>
       <Tooltip label={t('act.color')}>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={t('act.color')} onClick={(e) => e.stopPropagation()}>
+          <Button variant="ghost" size="icon-sm" aria-label={t('act.color')} className={className} onClick={(e) => e.stopPropagation()}>
             <Palette />
           </Button>
         </DropdownMenuTrigger>

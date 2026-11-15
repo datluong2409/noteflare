@@ -11,9 +11,11 @@ interface Props {
   value: string[]
   allLabels: string[]
   onChange: (labels: string[]) => void
+  /** Extra classes for the trigger button (the phone editor's toolbar uses bigger ones). */
+  className?: string
 }
 
-export function LabelMenu({ value, allLabels, onChange }: Props) {
+export function LabelMenu({ value, allLabels, onChange, className }: Props) {
   const { t } = useI18n()
   const [query, setQuery] = useState('')
   const q = query.trim()
@@ -29,7 +31,7 @@ export function LabelMenu({ value, allLabels, onChange }: Props) {
     <DropdownMenu onOpenChange={(o) => !o && setQuery('')}>
       <Tooltip label={t('act.labels')}>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="icon-sm" aria-label={t('act.labels')}>
+          <Button variant="ghost" size="icon-sm" aria-label={t('act.labels')} className={className}>
             <Tag />
           </Button>
         </DropdownMenuTrigger>

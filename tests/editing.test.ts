@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { applyEdit, continueList, indentLines, toggleChecklist, type Edit } from '../src/lib/editing'
+import { applyEdit, continueList, indentLines, toggleBullets, toggleChecklist, type Edit } from '../src/lib/editing'
 
 /** Runs an edit on text with "|" marking the cursor (or two "|" a selection) and returns the result with markers. */
 function run(marked: string, fn: (v: string, s: number, e: number) => Edit | null) {
@@ -65,5 +65,23 @@ describe('toggleChecklist', () => {
   })
   it('mixed selections become all checklist items', () => {
     expect(run('|- [ ] a\nb|', toggleChecklist)).toBe('|- [ ] a\n- [ ] b|')
+  })
+})
+
+describe('toggleBullets', () => {
+  it('turns a plain line into a bullet, keeping the cursor on its text', () => {
+    expect(run('buy milk|', toggleBullets)).toBe('- buy milk|')
+    expect(run('  indented|', toggleBullets)).toBe('  - indented|')
+  })
+  it('turns checklist and numbered items into bullets', () => {
+    expect(run('- [ ] a|', toggleBullets)).toBe('- a|')
+    expect(run('3. three|', toggleBullets)).toBe('- three|')
+  })
+  it('removes bullets when every selected line has one', () => {
+    expect(run('|- a\n- b|', toggleBullets)).toBe('|a\nb|')
+    expect(run('|- a\nb|', toggleBullets)).toBe('|- a\n- b|')
+  })
+  it('starts an empty bullet on an empty line', () => {
+    expect(run('|', toggleBullets)).toBe('- |')
   })
 })

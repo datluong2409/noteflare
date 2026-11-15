@@ -28,10 +28,14 @@ import { DONATE_URL, takeNewReleases, useUpdates } from '@/lib/updates'
 import { onLaunch, type LaunchAction } from '@/lib/launch'
 import { themeTransition } from '@/lib/motion'
 import { ImportDropzone, type ImportHandle } from './ImportDropzone'
+import { PhoneNotebook } from './PhoneNotebook'
+import { useIsPhone } from '@/hooks/useIsPhone'
 
 type View = { kind: 'notes' } | { kind: 'archive' } | { kind: 'trash' } | { kind: 'label'; label: string }
 
 const byPosition = (a: Note, b: Note) => b.position - a.position
+/** Phones list notes by when they were last edited, like iPhone Notes. */
+const byEdited = (a: Note, b: Note) => b.updatedAt - a.updatedAt
 const sameView = (a: View, b: View) => a.kind === b.kind && (a.kind !== 'label' || a.label === (b as typeof a).label)
 const MAX_REVEAL = 18
 const LAYOUT_KEY = 'noteflare:layout'
@@ -55,7 +59,10 @@ export function Notebook({ dek }: { dek: CryptoKey }) {
   const [iosHelpOpen, setIosHelpOpen] = useState(false)
   const store = useNotes(dek)
   const { theme, setTheme } = useTheme()
+  const phone = useIsPhone()
   const [view, setView] = useState<View>({ kind: 'notes' })
+  // Phones: the "Folders" page (notes, labels, archive, trash) instead of a list.
+  const [showFolders, setShowFolders] = useState(false)
   const [query, setQuery] = useState('')
   const [editing, setEditing] = useState<Note | null>(null)
   // The note that just closed keeps the top layer while it settles back into the grid.
@@ -133,6 +140,11 @@ export function Notebook({ dek }: { dek: CryptoKey }) {
     [store.notes],
   )
 
+  const labelCounts = useMemo(() => {
+    const live = store.notes.filter((n) => !n.trashedAt)
+    return labels.map((label) => ({ label, count: live.filter((n) => n.labels.includes(label)).length }))
+  }, [store.notes, labels])
+
   const counts = useMemo(() => {
     const live = store.notes.filter((n) => !n.trashedAt)
     return {
@@ -154,8 +166,8 @@ export function Notebook({ dek }: { dek: CryptoKey }) {
         }
       })
       .filter((n) => !q || `${n.title}\n${n.body}\n${n.labels.join(' ')}`.toLocaleLowerCase().includes(q))
-      .sort(byPosition)
-  }, [store.notes, view, appliedQuery])
+      .sort(phone ? byEdited : byPosition)
+  }, [store.notes, view, appliedQuery, phone])
 
   const pinned = view.kind === 'trash' ? [] : visible.filter((n) => n.pinned)
   const others = view.kind === 'trash' ? visible : visible.filter((n) => !n.pinned)
@@ -374,257 +386,311 @@ export function Notebook({ dek }: { dek: CryptoKey }) {
 
   const isNewDraft = !!editing && editing.version === 0 && !store.byId.has(editing.id)
 
+  const accountMenu = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant="ghost"
+          size="icon"
+          aria-label={updates.updateAvailable ? `${t('nb.account')} · ${t('nb.updateReady')}` : t('nb.account')}
+          className="relative rounded-full"
+        >
+          <span className="grid size-8 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
+            {email?.[0]?.toUpperCase()}
+          </span>
+          {updates.updateAvailable && (
+            <span aria-hidden className="absolute top-0.5 right-0.5 size-2.5 rounded-full bg-link ring-2 ring-background animate-in zoom-in-0 duration-300 ease-[var(--ease-spring)]" />
+          )}
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end" className="w-64">
+        <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+        {/* The sync state in words: on a phone the header only has room for its icon. */}
+        <DropdownMenuItem onSelect={syncNow} className="text-xs text-muted-foreground">
+          <RefreshCw /> <span className="truncate">{syncLabel}</span>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => importer.current?.pickFolder()}>
+          <FolderUp /> {t('nb.importFolder')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => importer.current?.pickFiles()}>
+          <FileUp /> {t('nb.importFiles')}
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          onSelect={() => {
+            toast(t('imp.keepHint'))
+            importer.current?.pickFolder()
+          }}
+        >
+          <StickyNote /> {t('nb.importKeep')}
+        </DropdownMenuItem>
+        {(canInstall || needsIosHelp) && (
+          <DropdownMenuItem onSelect={() => (canInstall ? void install() : setIosHelpOpen(true))}>
+            <Download /> {t('nb.install')}
+          </DropdownMenuItem>
+        )}
+        <DropdownMenuItem onSelect={() => (flush(), setBackupOpen(true))}>
+          <HardDriveDownload /> {t('nb.backup')}
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuLabel className="flex items-center gap-2">
+          <Languages className="size-3.5" /> {t('nb.language')}
+        </DropdownMenuLabel>
+        {LANGS.map((l) => (
+          <DropdownMenuItem key={l.code} onSelect={() => setLang(l.code)} lang={l.code}>
+            <span className="grid size-4 place-items-center">{lang === l.code && <Check />}</span>
+            {l.name}
+          </DropdownMenuItem>
+        ))}
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => setIntOpen(true)}>
+          <Plug /> {t('nb.integrations')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setPwOpen(true)}>
+          <KeyRound /> {t('nb.changePassphrase')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => setKeysOpen(true)} className="max-md:hidden">
+          <Keyboard /> {t('nb.shortcuts')}
+          <kbd className="ml-auto font-mono text-xs text-muted-foreground">?</kbd>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => openAbout('updates')}>
+          <Info /> {t('nb.about')}
+          {updates.updateAvailable && (
+            <span className="ml-auto rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-medium text-link">{t('nb.updateReady')}</span>
+          )}
+        </DropdownMenuItem>
+        <DropdownMenuItem asChild>
+          <a href={DONATE_URL} target="_blank" rel="noopener noreferrer">
+            <Coffee /> {t('nb.support')}
+          </a>
+        </DropdownMenuItem>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem onSelect={() => transition(lock)}>
+          <Lock /> {t('nb.lockNow')}
+        </DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void handleSignOut()}>
+          <LogOut /> {t('nb.signOut')}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  )
+
+  const themeButton = (
+    <Tooltip label={theme === 'dark' ? t('nb.lightTheme') : t('nb.darkTheme')}>
+      <Button
+        variant="ghost"
+        size="icon"
+        aria-label={t('nb.toggleTheme')}
+        onClick={(e) => themeTransition(e.currentTarget, () => setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'))}
+      >
+        <Sun className="hidden dark:block" />
+        <Moon className="dark:hidden" />
+      </Button>
+    </Tooltip>
+  )
+
+  const viewTitle =
+    view.kind === 'notes' ? t('nb.notes') : view.kind === 'archive' ? t('nb.archive') : view.kind === 'trash' ? t('nb.trash') : view.label
+
+  const trashBar = view.kind === 'trash' && visible.length > 0 && (
+    <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <p className="text-sm text-muted-foreground">{t('nb.trashNotice')}</p>
+      <Button variant="outline" size="sm" onClick={() => void emptyTrash()}>
+        <Trash2 /> {t('nb.emptyTrashButton')}
+      </Button>
+    </div>
+  )
+
+  /** Phones: the editor's compose button leaves this note (saving it) and starts a new one. */
+  const composeFrom = (current: Note) => {
+    if (isEmptyNote(current) && current.version === 0) discard(current.id)
+    else flush(current.id)
+    newNote()
+  }
+
+
   return (
     <AttachmentsContext.Provider value={attachmentsState}>
     <TooltipProvider delayDuration={400}>
     <div className="min-h-dvh">
-      <header className="sticky top-0 z-30 border-b bg-background/85 pt-[env(safe-area-inset-top)] backdrop-blur-md" style={{ viewTransitionName: 'site-header' }}>
-        <div className="mx-auto flex h-16 max-w-[84rem] items-center gap-3 px-3 sm:px-6">
-          <a
-            href="/"
-            className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
-            aria-label="NoteFlare"
-            onClick={(e) => {
-              // Home, without reloading: a reload would drop the key and lock the notebook.
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
-              e.preventDefault()
-              setQuery('')
-              go({ kind: 'notes' })
-              window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
-            }}
-          >
-            <img src="/favicon.svg" alt="" className="size-8" />
-            <span className="text-lg font-semibold tracking-tight max-sm:hidden">NoteFlare</span>
-          </a>
+      {phone ? (
+        <PhoneNotebook
+          view={view}
+          title={viewTitle}
+          showFolders={showFolders}
+          onShowFolders={(show) => transition(() => setShowFolders(show))}
+          actions={
+            <>
+              <SaveIndicator status={status} onSignIn={signInAgain} onSync={syncNow} />
+              {themeButton}
+              {accountMenu}
+            </>
+          }
+          query={query}
+          onQuery={setQuery}
+          searchRef={searchRef}
+          loading={store.loading}
+          pinned={pinned}
+          others={others}
+          empty={<Empty view={view} query={appliedQuery} onNew={newNote} />}
+          trashBar={trashBar || undefined}
+          counts={counts}
+          labels={labelCounts}
+          onPick={go}
+          onNew={newNote}
+          onOpen={open}
+          onChange={change}
+          onDeleteForever={deleteForever}
+        />
+      ) : (
+        <>
+        <header className="sticky top-0 z-30 border-b bg-background/85 pt-[env(safe-area-inset-top)] backdrop-blur-md" style={{ viewTransitionName: 'site-header' }}>
+          <div className="mx-auto flex h-16 max-w-[84rem] items-center gap-3 px-3 sm:px-6">
+            <a
+              href="/"
+              className="flex shrink-0 items-center gap-2.5 rounded-md outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              aria-label="NoteFlare"
+              onClick={(e) => {
+                // Home, without reloading: a reload would drop the key and lock the notebook.
+                if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+                e.preventDefault()
+                setQuery('')
+                go({ kind: 'notes' })
+                window.scrollTo({ top: 0, behavior: prefersReducedMotion() ? 'auto' : 'smooth' })
+              }}
+            >
+              <img src="/favicon.svg" alt="" className="size-8" />
+              <span className="text-lg font-semibold tracking-tight max-sm:hidden">NoteFlare</span>
+            </a>
 
-          <label className="relative mx-auto flex max-w-xl flex-1 items-center">
-            <span className="sr-only">{t('nb.searchLabel')}</span>
-            <Search className="pointer-events-none absolute left-3.5 size-4 text-muted-foreground" />
-            <input
-              ref={searchRef}
-              type="search"
-              enterKeyHint="search"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-              onKeyDown={(e) => e.key === 'Escape' && (setQuery(''), e.currentTarget.blur())}
-              placeholder={t('nb.searchPlaceholder')}
-              className="h-10 w-full rounded-full bg-muted pr-9 pl-10 text-sm outline-none transition-[background-color,box-shadow] placeholder:text-muted-foreground focus:bg-surface focus:shadow-[0_0_0_1.5px_var(--ring)] [&::-webkit-search-cancel-button]:hidden"
-            />
-            {query ? (
-              <button type="button" aria-label={t('nb.clearSearch')} className="absolute right-2.5 rounded-full p-1 text-muted-foreground hover:text-foreground" onClick={() => setQuery('')}>
-                <X className="size-4" />
-              </button>
-            ) : (
-              <kbd className="pointer-events-none absolute right-3 rounded border px-1.5 font-mono text-[11px] text-muted-foreground max-sm:hidden">/</kbd>
-            )}
-          </label>
+            <label className="relative mx-auto flex max-w-xl flex-1 items-center">
+              <span className="sr-only">{t('nb.searchLabel')}</span>
+              <Search className="pointer-events-none absolute left-3.5 size-4 text-muted-foreground" />
+              <input
+                ref={searchRef}
+                type="search"
+                enterKeyHint="search"
+                value={query}
+                onChange={(e) => setQuery(e.target.value)}
+                onKeyDown={(e) => e.key === 'Escape' && (setQuery(''), e.currentTarget.blur())}
+                placeholder={t('nb.searchPlaceholder')}
+                className="h-10 w-full rounded-full bg-muted pr-9 pl-10 text-sm outline-none transition-[background-color,box-shadow] placeholder:text-muted-foreground focus:bg-surface focus:shadow-[0_0_0_1.5px_var(--ring)] [&::-webkit-search-cancel-button]:hidden"
+              />
+              {query ? (
+                <button type="button" aria-label={t('nb.clearSearch')} className="absolute right-2.5 rounded-full p-1 text-muted-foreground hover:text-foreground" onClick={() => setQuery('')}>
+                  <X className="size-4" />
+                </button>
+              ) : (
+                <kbd className="pointer-events-none absolute right-3 rounded border px-1.5 font-mono text-[11px] text-muted-foreground max-sm:hidden">/</kbd>
+              )}
+            </label>
 
-          <div className="flex items-center gap-0.5">
-            <SaveIndicator status={status} onSignIn={signInAgain} onSync={syncNow} />
-            <Tooltip label={layout === 'grid' ? t('nb.layoutList') : t('nb.layoutGrid')}>
-              <Button
-                variant="ghost"
-                size="icon"
-                className="max-md:hidden"
-                aria-label={layout === 'grid' ? t('nb.layoutList') : t('nb.layoutGrid')}
-                onClick={() => setLayout(layout === 'grid' ? 'list' : 'grid')}
-              >
-                <span key={layout} className="animate-in zoom-in-75 spin-in-45 fade-in-0 duration-300 ease-[var(--ease-spring)]">
-                  {layout === 'grid' ? <Rows3 /> : <LayoutGrid />}
-                </span>
-              </Button>
-            </Tooltip>
-            <Tooltip label={theme === 'dark' ? t('nb.lightTheme') : t('nb.darkTheme')}>
-              <Button
-                variant="ghost"
-                size="icon"
-                aria-label={t('nb.toggleTheme')}
-                onClick={(e) => themeTransition(e.currentTarget, () => setTheme(document.documentElement.classList.contains('dark') ? 'light' : 'dark'))}
-              >
-                <Sun className="hidden dark:block" />
-                <Moon className="dark:hidden" />
-              </Button>
-            </Tooltip>
-            <Tooltip label={t('nb.lockNow')}>
-              <Button variant="ghost" size="icon" aria-label={t('nb.lockNow')} className="max-sm:hidden" onClick={() => transition(lock)}>
-                <Lock />
-              </Button>
-            </Tooltip>
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
+            <div className="flex items-center gap-0.5">
+              <SaveIndicator status={status} onSignIn={signInAgain} onSync={syncNow} />
+              <Tooltip label={layout === 'grid' ? t('nb.layoutList') : t('nb.layoutGrid')}>
                 <Button
                   variant="ghost"
                   size="icon"
-                  aria-label={updates.updateAvailable ? `${t('nb.account')} · ${t('nb.updateReady')}` : t('nb.account')}
-                  className="relative rounded-full"
+                  className="max-md:hidden"
+                  aria-label={layout === 'grid' ? t('nb.layoutList') : t('nb.layoutGrid')}
+                  onClick={() => setLayout(layout === 'grid' ? 'list' : 'grid')}
                 >
-                  <span className="grid size-8 place-items-center rounded-full bg-primary text-sm font-semibold text-primary-foreground">
-                    {email?.[0]?.toUpperCase()}
+                  <span key={layout} className="animate-in zoom-in-75 spin-in-45 fade-in-0 duration-300 ease-[var(--ease-spring)]">
+                    {layout === 'grid' ? <Rows3 /> : <LayoutGrid />}
                   </span>
-                  {updates.updateAvailable && (
-                    <span aria-hidden className="absolute top-0.5 right-0.5 size-2.5 rounded-full bg-link ring-2 ring-background animate-in zoom-in-0 duration-300 ease-[var(--ease-spring)]" />
-                  )}
                 </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end" className="w-64">
-                <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
-                {/* The sync state in words: on a phone the header only has room for its icon. */}
-                <DropdownMenuItem onSelect={syncNow} className="text-xs text-muted-foreground">
-                  <RefreshCw /> <span className="truncate">{syncLabel}</span>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => importer.current?.pickFolder()}>
-                  <FolderUp /> {t('nb.importFolder')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => importer.current?.pickFiles()}>
-                  <FileUp /> {t('nb.importFiles')}
-                </DropdownMenuItem>
-                <DropdownMenuItem
-                  onSelect={() => {
-                    toast(t('imp.keepHint'))
-                    importer.current?.pickFolder()
-                  }}
-                >
-                  <StickyNote /> {t('nb.importKeep')}
-                </DropdownMenuItem>
-                {(canInstall || needsIosHelp) && (
-                  <DropdownMenuItem onSelect={() => (canInstall ? void install() : setIosHelpOpen(true))}>
-                    <Download /> {t('nb.install')}
-                  </DropdownMenuItem>
-                )}
-                <DropdownMenuItem onSelect={() => (flush(), setBackupOpen(true))}>
-                  <HardDriveDownload /> {t('nb.backup')}
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuLabel className="flex items-center gap-2">
-                  <Languages className="size-3.5" /> {t('nb.language')}
-                </DropdownMenuLabel>
-                {LANGS.map((l) => (
-                  <DropdownMenuItem key={l.code} onSelect={() => setLang(l.code)} lang={l.code}>
-                    <span className="grid size-4 place-items-center">{lang === l.code && <Check />}</span>
-                    {l.name}
-                  </DropdownMenuItem>
-                ))}
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => setIntOpen(true)}>
-                  <Plug /> {t('nb.integrations')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setPwOpen(true)}>
-                  <KeyRound /> {t('nb.changePassphrase')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => setKeysOpen(true)} className="max-md:hidden">
-                  <Keyboard /> {t('nb.shortcuts')}
-                  <kbd className="ml-auto font-mono text-xs text-muted-foreground">?</kbd>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => openAbout('updates')}>
-                  <Info /> {t('nb.about')}
-                  {updates.updateAvailable && (
-                    <span className="ml-auto rounded-full bg-primary/15 px-1.5 py-0.5 text-[11px] font-medium text-link">{t('nb.updateReady')}</span>
-                  )}
-                </DropdownMenuItem>
-                <DropdownMenuItem asChild>
-                  <a href={DONATE_URL} target="_blank" rel="noopener noreferrer">
-                    <Coffee /> {t('nb.support')}
-                  </a>
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onSelect={() => transition(lock)}>
-                  <Lock /> {t('nb.lockNow')}
-                </DropdownMenuItem>
-                <DropdownMenuItem onSelect={() => void handleSignOut()}>
-                  <LogOut /> {t('nb.signOut')}
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
+              </Tooltip>
+              {themeButton}
+              <Tooltip label={t('nb.lockNow')}>
+                <Button variant="ghost" size="icon" aria-label={t('nb.lockNow')} className="max-sm:hidden" onClick={() => transition(lock)}>
+                  <Lock />
+                </Button>
+              </Tooltip>
+              {accountMenu}
+            </div>
           </div>
-        </div>
 
-        {/* Notes and labels scroll sideways; Archive and Trash stay put, so they are always in reach. */}
-        <nav aria-label={t('nb.filters')} className="mx-auto flex max-w-[84rem] items-start gap-2 px-3 pb-3 sm:px-6">
-          <div
-            ref={navRef}
-            className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"
-            style={{
-              maskImage: `linear-gradient(to right, ${edges.start ? 'transparent, black 2.5rem' : 'black, black'}, ${edges.end ? 'black calc(100% - 2.5rem), transparent' : 'black, black'})`,
-            }}
-          >
-          <ul className="flex w-max gap-2">
-            <Chip active={view.kind === 'notes'} onClick={() => go({ kind: 'notes' })} count={counts.notes}>
-              {t('nb.notes')}
-            </Chip>
-            {labels.map((l) => (
-              <Chip key={l} active={view.kind === 'label' && view.label === l} onClick={() => go({ kind: 'label', label: l })} title={l}>
-                <span className="block max-w-[14rem] truncate">#{l}</span>
+          {/* Notes and labels scroll sideways; Archive and Trash stay put, so they are always in reach. */}
+          <nav aria-label={t('nb.filters')} className="mx-auto flex max-w-[84rem] items-start gap-2 px-3 pb-3 sm:px-6">
+            <div
+              ref={navRef}
+              className="min-w-0 flex-1 overflow-x-auto [scrollbar-width:none]"
+              style={{
+                maskImage: `linear-gradient(to right, ${edges.start ? 'transparent, black 2.5rem' : 'black, black'}, ${edges.end ? 'black calc(100% - 2.5rem), transparent' : 'black, black'})`,
+              }}
+            >
+            <ul className="flex w-max gap-2">
+              <Chip active={view.kind === 'notes'} onClick={() => go({ kind: 'notes' })} count={counts.notes}>
+                {t('nb.notes')}
               </Chip>
-            ))}
-          </ul>
-          </div>
-          <ul className="flex shrink-0 gap-1 sm:gap-2">
-            <Chip active={view.kind === 'archive'} onClick={() => go({ kind: 'archive' })} count={counts.archive} icon={<Archive />} label={t('nb.archive')} />
-            <Chip active={view.kind === 'trash'} onClick={() => go({ kind: 'trash' })} count={counts.trash} icon={<Trash2 />} label={t('nb.trash')} />
-          </ul>
-        </nav>
-      </header>
+              {labels.map((l) => (
+                <Chip key={l} active={view.kind === 'label' && view.label === l} onClick={() => go({ kind: 'label', label: l })} title={l}>
+                  <span className="block max-w-[14rem] truncate">#{l}</span>
+                </Chip>
+              ))}
+            </ul>
+            </div>
+            <ul className="flex shrink-0 gap-1 sm:gap-2">
+              <Chip active={view.kind === 'archive'} onClick={() => go({ kind: 'archive' })} count={counts.archive} icon={<Archive />} label={t('nb.archive')} />
+              <Chip active={view.kind === 'trash'} onClick={() => go({ kind: 'trash' })} count={counts.trash} icon={<Trash2 />} label={t('nb.trash')} />
+            </ul>
+          </nav>
+        </header>
 
-      <main className="mx-auto max-w-[84rem] px-3 pt-6 pb-32 sm:px-6">
-        {view.kind === 'trash' && visible.length > 0 && (
-          <div className="mb-6 flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
-            <p className="text-sm text-muted-foreground">{t('nb.trashNotice')}</p>
-            <Button variant="outline" size="sm" onClick={() => void emptyTrash()}>
-              <Trash2 /> {t('nb.emptyTrashButton')}
-            </Button>
-          </div>
-        )}
-        {appliedQuery.trim() && visible.length > 0 && (
-          <p key={visible.length} role="status" className="mb-5 px-1 text-sm text-muted-foreground animate-in fade-in-0 duration-200">
-            {visible.length === 1 ? t('nb.resultOne') : t('nb.results', { n: visible.length })}
-          </p>
-        )}
-
-        {store.loading ? (
-          <Skeleton label={t('nb.decryptingNotes')} />
-        ) : !visible.length ? (
-          <Empty view={view} query={appliedQuery} onNew={newNote} />
-        ) : (
-          <>
-            {pinned.length > 0 && (
-              <Section label={t('nb.pinned')} layout={layout}>
-                {pinned.map((n) => (
-                  <NoteCard key={n.id} note={n} revealIndex={revealIndex(n.id)} lifted={editing?.id === n.id} focused={focusId === n.id} onOpen={open} onChange={change} onDeleteForever={deleteForever} reorder={canReorder ? reorder : undefined} dragging={dragId === n.id} dropTarget={overId === n.id} />
-                ))}
-              </Section>
-            )}
-            {others.length > 0 && (
-              <Section label={pinned.length ? t('nb.others') : undefined} layout={layout}>
-                {others.map((n) => (
-                  <NoteCard key={n.id} note={n} revealIndex={revealIndex(n.id)} lifted={editing?.id === n.id} focused={focusId === n.id} onOpen={open} onChange={change} onDeleteForever={deleteForever} reorder={canReorder ? reorder : undefined} dragging={dragId === n.id} dropTarget={overId === n.id} />
-                ))}
-              </Section>
-            )}
-          </>
-        )}
-      </main>
-
-      {view.kind !== 'trash' && (
-        <button
-          type="button"
-          onClick={newNote}
-          aria-keyshortcuts="c"
-          style={{ viewTransitionName: isNewDraft ? 'none' : 'composer', viewTransitionClass: VT_CLASS.fab }}
-          className={cn(
-            'group fixed right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center gap-2 rounded-2xl bg-primary pr-5 pl-4 font-medium text-primary-foreground outline-none sm:right-[calc(2rem+env(safe-area-inset-right))] sm:bottom-[calc(2rem+env(safe-area-inset-bottom))]',
-            'shadow-[0_10px_30px_-10px_color-mix(in_oklab,var(--primary)_80%,transparent)] transition-[transform,box-shadow] duration-200 ease-[var(--ease-out)]',
-            'hover:-translate-y-0.5 hover:shadow-[0_14px_34px_-10px_color-mix(in_oklab,var(--flare)_70%,transparent)] active:translate-y-0 active:scale-[0.97]',
-            'focus-visible:ring-[3px] focus-visible:ring-ring/50',
-            isNewDraft && 'opacity-0',
-            // Out of the way while typing on a phone (search box, dialogs).
-            '[html[data-keyboard=open]_&]:pointer-events-none [html[data-keyboard=open]_&]:opacity-0',
+        <main className="mx-auto max-w-[84rem] px-3 pt-6 pb-32 sm:px-6">
+          {trashBar}
+          {appliedQuery.trim() && visible.length > 0 && (
+            <p key={visible.length} role="status" className="mb-5 px-1 text-sm text-muted-foreground animate-in fade-in-0 duration-200">
+              {visible.length === 1 ? t('nb.resultOne') : t('nb.results', { n: visible.length })}
+            </p>
           )}
-        >
-          <Plus className="size-5 transition-transform duration-300 ease-[var(--ease-spring)] group-hover:rotate-90" />
-          {t('nb.newNote')}
-        </button>
+
+          {store.loading ? (
+            <Skeleton label={t('nb.decryptingNotes')} />
+          ) : !visible.length ? (
+            <Empty view={view} query={appliedQuery} onNew={newNote} />
+          ) : (
+            <>
+              {pinned.length > 0 && (
+                <Section label={t('nb.pinned')} layout={layout}>
+                  {pinned.map((n) => (
+                    <NoteCard key={n.id} note={n} revealIndex={revealIndex(n.id)} lifted={editing?.id === n.id} focused={focusId === n.id} onOpen={open} onChange={change} onDeleteForever={deleteForever} reorder={canReorder ? reorder : undefined} dragging={dragId === n.id} dropTarget={overId === n.id} />
+                  ))}
+                </Section>
+              )}
+              {others.length > 0 && (
+                <Section label={pinned.length ? t('nb.others') : undefined} layout={layout}>
+                  {others.map((n) => (
+                    <NoteCard key={n.id} note={n} revealIndex={revealIndex(n.id)} lifted={editing?.id === n.id} focused={focusId === n.id} onOpen={open} onChange={change} onDeleteForever={deleteForever} reorder={canReorder ? reorder : undefined} dragging={dragId === n.id} dropTarget={overId === n.id} />
+                  ))}
+                </Section>
+              )}
+            </>
+          )}
+        </main>
+
+        {view.kind !== 'trash' && (
+          <button
+            type="button"
+            onClick={newNote}
+            aria-keyshortcuts="c"
+            style={{ viewTransitionName: isNewDraft ? 'none' : 'composer', viewTransitionClass: VT_CLASS.fab }}
+            className={cn(
+              'group fixed right-[calc(1.25rem+env(safe-area-inset-right))] bottom-[calc(1.25rem+env(safe-area-inset-bottom))] z-30 flex h-14 items-center gap-2 rounded-2xl bg-primary pr-5 pl-4 font-medium text-primary-foreground outline-none sm:right-[calc(2rem+env(safe-area-inset-right))] sm:bottom-[calc(2rem+env(safe-area-inset-bottom))]',
+              'shadow-[0_10px_30px_-10px_color-mix(in_oklab,var(--primary)_80%,transparent)] transition-[transform,box-shadow] duration-200 ease-[var(--ease-out)]',
+              'hover:-translate-y-0.5 hover:shadow-[0_14px_34px_-10px_color-mix(in_oklab,var(--flare)_70%,transparent)] active:translate-y-0 active:scale-[0.97]',
+              'focus-visible:ring-[3px] focus-visible:ring-ring/50',
+              isNewDraft && 'opacity-0',
+              // Out of the way while typing on a phone (search box, dialogs).
+              '[html[data-keyboard=open]_&]:pointer-events-none [html[data-keyboard=open]_&]:opacity-0',
+            )}
+          >
+            <Plus className="size-5 transition-transform duration-300 ease-[var(--ease-spring)] group-hover:rotate-90" />
+            {t('nb.newNote')}
+          </button>
+        )}
+        </>
       )}
 
       <ImportDropzone
@@ -641,10 +707,12 @@ export function Notebook({ dek }: { dek: CryptoKey }) {
         note={editing}
         transitionName={editing ? (isNewDraft ? 'composer' : vtName(editing.id)) : undefined}
         allLabels={labels}
+        backLabel={viewTitle}
         saveState={saveState}
         onSave={(n) => upsert(n)}
         onClose={closeEditor}
         onDeleteForever={deleteForever}
+        onNew={composeFrom}
       />
       <ChangePassphraseDialog open={pwOpen} onOpenChange={setPwOpen} />
       <IntegrationsDialog open={intOpen} onOpenChange={setIntOpen} />

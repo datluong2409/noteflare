@@ -617,3 +617,136 @@ textarea,
 [role='button'] {
   touch-action: manipulation;
 }
+
+/* ===================================================================
+ * Live editor: a real textarea for typing (IME, autocorrect and undo stay native)
+ * with a mirror on top that draws the same text, plus round checkboxes over
+ * "- [ ] ". The mirror only changes colours and draws over hidden marker text,
+ * so both layers wrap identically. Unlayered, so `font: inherit` beats the touch-screen
+ * textarea rule above: the field's size comes from its wrapper (17px on phones, never under
+ * 16px, so iOS doesn't zoom in).
+ * =================================================================== */
+.live-text {
+  position: relative;
+}
+.live-input,
+.live-mirror {
+  display: block;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: inherit;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  word-break: normal;
+  tab-size: 4;
+}
+.live-input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  resize: none;
+  overflow: hidden;
+  background: transparent;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  caret-color: var(--foreground);
+  outline: none;
+}
+.live-input::selection {
+  background: color-mix(in oklab, var(--primary) 32%, transparent);
+}
+.live-mirror {
+  position: relative;
+  pointer-events: none;
+  min-height: inherit;
+}
+/* Marker text ("- [ ] ", "- ") keeps its width but is drawn as a circle or a dot. */
+.live-marker {
+  position: relative;
+  color: transparent;
+}
+.live-dot {
+  position: absolute;
+  left: 0.1em;
+  color: var(--muted-foreground);
+}
+.live-box {
+  position: absolute;
+  /* Anchored left: "[x]" is wider than "[ ]", so a right anchor would jump when ticked. */
+  left: 0.35em;
+  top: 50%;
+  width: 1.2em;
+  height: 1.2em;
+  translate: 0 -50%;
+  display: grid;
+  place-content: center;
+  border-radius: 999px;
+  border: 1.5px solid color-mix(in oklab, var(--foreground) 32%, transparent);
+  background: transparent;
+  pointer-events: auto;
+  touch-action: manipulation;
+  transition: background-color 160ms, border-color 160ms, scale 160ms var(--ease-out);
+}
+/* A finger-sized target around the small circle. */
+.live-box::before {
+  content: '';
+  position: absolute;
+  inset: -0.55em -0.4em;
+}
+.live-box:active {
+  scale: 0.85;
+}
+.live-box::after {
+  content: '';
+  width: 0.62em;
+  height: 0.62em;
+  background: var(--primary-foreground);
+  clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
+  scale: 0;
+  transition: scale 220ms var(--ease-spring);
+}
+.live-box[data-checked='true'] {
+  background: var(--primary);
+  border-color: var(--primary);
+}
+.live-box[data-checked='true']::after {
+  scale: 1;
+}
+.live-box:disabled {
+  pointer-events: none;
+}
+.live-done {
+  color: var(--muted-foreground);
+  text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 40%, transparent);
+}
+
+/* Phones: the editor slides in from the right like a pushed page, and back out. */
+::view-transition-group(*.sheet) { z-index: 21; }
+::view-transition-new(*.sheet):only-child {
+  animation: sheet-in 360ms var(--ease-out) both;
+}
+::view-transition-old(*.sheet):only-child {
+  animation: sheet-out 260ms cubic-bezier(0.4, 0, 1, 1) both;
+}
+@keyframes sheet-in { from { transform: translateX(100%); } }
+@keyframes sheet-out { to { transform: translateX(100%); } }
+
+/* Phones: rows of the note list, grouped on inset cards like iPhone Notes. */
+.ios-group {
+  overflow: hidden;
+  border-radius: 0.875rem;
+  background: var(--surface);
+}
+.ios-row + .ios-row > .ios-row-body::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 1rem;
+  right: 0;
+  border-top: 0.5px solid color-mix(in oklab, var(--foreground) 16%, transparent);
+}
