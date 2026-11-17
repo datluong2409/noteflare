@@ -235,6 +235,7 @@ export function NoteEditor({ note, transitionName, allLabels, backLabel, saveSta
         else focusBody()
       }}
       placeholder={t('ed.title')}
+      autoFocus={isNew}
       maxLength={300}
       enterKeyHint="next"
       className={cn(
@@ -259,7 +260,6 @@ export function NoteEditor({ note, transitionName, allLabels, backLabel, saveSta
       }}
       aria-keyshortcuts="Control+Enter Meta+Enter Control+Shift+L Meta+Shift+L"
       aria-label={t('ed.srBody')}
-      autoFocus={isNew}
       value={draft.body}
       onValueChange={(body) => change({ body })}
       onToggleBox={trashed ? undefined : toggleAt}
@@ -268,7 +268,7 @@ export function NoteEditor({ note, transitionName, allLabels, backLabel, saveSta
       className={cn(
         'animate-in fade-in-0 duration-200',
         // Phones: the empty space below the text is part of the field, so a tap there types at the end.
-        phone ? 'min-h-[calc(var(--vvh,100dvh)-16rem)] text-[17px] leading-[1.65]' : 'min-h-36 leading-relaxed',
+        phone ? 'min-h-[calc(var(--vvh,100dvh)-16rem)] text-[17px] leading-[1.8]' : 'min-h-36 leading-relaxed',
       )}
     />
   )
@@ -361,7 +361,11 @@ export function NoteEditor({ note, transitionName, allLabels, backLabel, saveSta
                 <ChevronLeft className="size-7 shrink-0 stroke-[2.25]" />
                 <span className="truncate">{backLabel}</span>
               </button>
-              <span className="flex-1" />
+              {/* Last edit, centered between back and the actions; the time line shows the save state while saving. */}
+              <p className="flex min-w-0 flex-1 flex-col items-center text-center text-xs leading-tight text-muted-foreground" aria-live="polite">
+                <span className="max-w-full truncate">{barDate(draft.updatedAt)}</span>
+                <span className="max-w-full truncate">{saveState === 'idle' ? barTime(draft.updatedAt) : status}</span>
+              </p>
               {typing ? (
                 <>
                   <BarButton label={t('ed.undo')} {...keepFocus} onClick={() => document.execCommand('undo')}>
@@ -392,11 +396,7 @@ export function NoteEditor({ note, transitionName, allLabels, backLabel, saveSta
             </div>
 
             <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 pb-6" {...dropImages}>
-              <p className="pb-1 text-center text-[13px] text-muted-foreground" aria-live="polite">
-                {fullDate(draft.updatedAt)}
-                {saveState !== 'idle' && ` · ${status}`}
-              </p>
-              <div className="text-[2rem]">{titleInput}</div>
+              <div className="pt-1 text-[2rem]">{titleInput}</div>
               <div className="pt-1">{body}</div>
               {labelChips}
             </div>
@@ -483,9 +483,16 @@ export function NoteEditor({ note, transitionName, allLabels, backLabel, saveSta
   )
 }
 
-/** "16 November 2026 at 00:09" above the title, as in iPhone Notes. */
-function fullDate(ms: number) {
-  return new Date(ms).toLocaleString(dateLocale(), { dateStyle: 'long', timeStyle: 'short' })
+/** "Nov 16" (plus the year when it isn't this year) for the phone top bar. */
+function barDate(ms: number) {
+  const d = new Date(ms)
+  const thisYear = d.getFullYear() === new Date().getFullYear()
+  return d.toLocaleDateString(dateLocale(), { day: 'numeric', month: 'short', year: thisYear ? undefined : 'numeric' })
+}
+
+/** "8:53 PM" under the date in the phone top bar. */
+function barTime(ms: number) {
+  return new Date(ms).toLocaleTimeString(dateLocale(), { hour: 'numeric', minute: '2-digit' })
 }
 
 const barClass = 'size-11 rounded-full text-link hover:bg-transparent active:opacity-50 [&_svg]:size-[22px] [@media(pointer:coarse)]:size-11'

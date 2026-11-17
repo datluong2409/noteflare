@@ -13,6 +13,8 @@ All notable changes to NoteFlare are recorded here. The format follows [Keep a C
 ### Changed
 
 - Notes open ready to type: the Edit/Preview switch is gone, since checklists now show as checkboxes while you edit. Note cards in the grid still show the formatted note, images included.
+- A new note starts with the cursor in the title; press Enter (Next on phones) to move to the text.
+- On phones, the note's last-edited date and time sit in the editor's top bar instead of above the title.
 - On phones, the editor is full screen, with Undo, Redo and Done at the top and a toolbar above the keyboard (checklist, bullets, image, labels, color, hide keyboard). Share, pin, archive and trash are in the "⋯" menu. Done now hides the keyboard; the back button returns to the list.
 
 ### Fixed

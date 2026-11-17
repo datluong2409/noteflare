@@ -24,6 +24,7 @@
   --ring: #f6821f;
   --primary: #f6821f;
   --primary-foreground: #1c1b1a;
+  --check: #ffffff; /* tick mark on a filled orange checkbox */
   --secondary: #edebe8;
   --secondary-foreground: #1c1b1a;
   --accent: #efece8;
@@ -59,6 +60,7 @@
   --ring: #fbad41;
   --primary: #f6821f;
   --primary-foreground: #1c1b1a;
+  --check: #ffffff; /* tick mark on a filled orange checkbox */
   --secondary: #2a2a2d;
   --secondary-foreground: #edebe8;
   --accent: #2c2c30;
@@ -457,7 +459,7 @@
   content: '';
   width: 0.62em;
   height: 0.62em;
-  background: var(--primary-foreground);
+  background: var(--check);
   clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
   transform: scale(0);
   transition: transform 220ms var(--ease-spring);
@@ -676,11 +678,12 @@ textarea,
 }
 .live-box {
   position: absolute;
-  /* Anchored left: "[x]" is wider than "[ ]", so a right anchor would jump when ticked. */
-  left: 0.35em;
+  /* Anchored left, flush with the text above: "[x]" is wider than "[ ]", so a right anchor would jump when ticked. */
+  left: 0;
   top: 50%;
-  width: 1.2em;
-  height: 1.2em;
+  /* As large as the line allows, so the gap the marker text leaves before the item stays small. */
+  width: 1.5em;
+  height: 1.5em;
   translate: 0 -50%;
   display: grid;
   place-content: center;
@@ -702,9 +705,9 @@ textarea,
 }
 .live-box::after {
   content: '';
-  width: 0.62em;
-  height: 0.62em;
-  background: var(--primary-foreground);
+  width: 0.78em;
+  height: 0.78em;
+  background: var(--check);
   clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
   scale: 0;
   transition: scale 220ms var(--ease-spring);
