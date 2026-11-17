@@ -191,9 +191,11 @@
   list-style: none;
   margin-left: -1.25em;
 }
-.md li:has(> input:checked) {
+.md li:has(> input:checked),
+.md li:has(> p > input:checked) {
   color: var(--muted-foreground);
   text-decoration: line-through;
+  text-decoration-color: color-mix(in oklab, var(--foreground) 40%, transparent);
 }
 .md blockquote {
   border-left: 3px solid color-mix(in oklab, var(--foreground) 22%, transparent);
@@ -429,21 +431,31 @@
   to { background-position: -150% 0; }
 }
 
-/* Custom checkbox: rounded box, check mark springs in */
+/* Custom checkbox: the same circle as the editor's (.live-box), check mark springs in */
 .md input[type='checkbox'] {
   appearance: none;
   -webkit-appearance: none;
+  position: relative;
   display: inline-grid;
   place-content: center;
-  width: 1.05em;
-  height: 1.05em;
-  margin: 0 0.5em 0 0;
-  vertical-align: -0.15em;
-  border: 1.6px solid color-mix(in oklab, var(--foreground) 45%, transparent);
-  border-radius: 0.3em;
+  width: 1.3em;
+  height: 1.3em;
+  /* Centred in the first line box, whatever the font: top-aligned, then pushed down by half the spare height. */
+  vertical-align: top;
+  margin: 0.12em 0.45em 0 0;
+  margin-top: calc((1lh - 1.3em) / 2);
+  border: 1.5px solid color-mix(in oklab, var(--foreground) 32%, transparent);
+  border-radius: 999px;
   background: transparent;
   cursor: pointer;
+  touch-action: manipulation;
   transition: background-color 160ms, border-color 160ms, transform 160ms var(--ease-out);
+}
+/* A wider target around the circle; sideways only, so the last item doesn't make the card look clipped. */
+.md input[type='checkbox']:not(:disabled)::before {
+  content: '';
+  position: absolute;
+  inset: 0 -0.35em;
 }
 .md input[type='checkbox']:not(:disabled):active {
   transform: scale(0.85);
@@ -457,8 +469,8 @@
 }
 .md input[type='checkbox']::after {
   content: '';
-  width: 0.62em;
-  height: 0.62em;
+  width: 0.68em;
+  height: 0.68em;
   background: var(--check);
   clip-path: polygon(14% 52%, 0 66%, 38% 100%, 100% 22%, 86% 8%, 38% 72%);
   transform: scale(0);

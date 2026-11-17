@@ -5,7 +5,7 @@ import { localStore } from './sync/localStore'
 import { NoteSync } from './sync/engine'
 import { t } from '../i18n'
 
-export { emptyNote, isEmptyNote, toggleTask, type Note, type NotePatch } from './noteModel'
+export { emptyNote, isEmptyNote, toggleTask, withRenderableTasks, type Note, type NotePatch } from './noteModel'
 export type { SyncStatus, ImportResult } from './sync/engine'
 
 /** How often to retry while offline or with unsynced changes (the `online` event isn't always reliable). */

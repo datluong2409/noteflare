@@ -1,6 +1,6 @@
 import 'fake-indexeddb/auto'
 import { describe, expect, it } from 'vitest'
-import { expiryFor, stillValid, type RememberedKey } from '../src/lib/remember'
+import { expiryFor, startFromDevice, stillValid, type RememberedKey } from '../src/lib/remember'
 import { createLocalStore } from '../src/lib/sync/localStore'
 
 const DAY = 86_400_000
@@ -29,6 +29,26 @@ describe('stillValid', () => {
   })
   it('rejects an expiry further out than the longest option (clock set back)', () => {
     expect(stillValid(rec({ expiresAt: 1000 + 31 * DAY }), 'a@x.com', 1000)).toBe(false)
+  })
+})
+
+describe('startFromDevice', () => {
+  const meta = { email: 'a@x.com', hasVault: true }
+  const kept = (patch: Partial<RememberedKey> = {}): RememberedKey => ({ key: {} as CryptoKey, email: 'a@x.com', expiresAt: null, ...patch })
+
+  it('opens the notes straight away with a valid kept key', () => {
+    expect(startFromDevice(meta, true, kept(), 1000)).toBe('unlocked')
+  })
+  it('opens the lock screen without a usable kept key', () => {
+    expect(startFromDevice(meta, true, null, 1000)).toBe('locked')
+    expect(startFromDevice(meta, true, kept({ expiresAt: 1000 }), 1000)).toBe('locked')
+    expect(startFromDevice(meta, true, kept({ email: 'b@x.com' }), 1000)).toBe('locked')
+  })
+  it('waits for the server when this device has no account or no wrapped keys', () => {
+    expect(startFromDevice(null, true, kept(), 1000)).toBeNull()
+    expect(startFromDevice({ email: '', hasVault: true }, true, kept(), 1000)).toBeNull()
+    expect(startFromDevice({ ...meta, hasVault: false }, true, kept(), 1000)).toBeNull()
+    expect(startFromDevice(meta, false, kept(), 1000)).toBeNull()
   })
 })
 

@@ -162,17 +162,19 @@ export class NoteSync {
     for (const e of entries) this.outbox.set(e.id, e)
     this.seq = entries.reduce((max, e) => Math.max(max, e.seq), 0)
 
+    const live = rows.filter((row) => this.outbox.get(row.id)?.kind !== 'delete')
+    // Decrypt all at once: one at a time held the first paint up by the whole cache.
+    const decoded = await Promise.all(live.map((row) => this.decryptRow(row)))
     const notes = new Map<string, Note>()
-    for (const row of rows) {
+    live.forEach((row, i) => {
       const entry = this.outbox.get(row.id)
-      if (entry?.kind === 'delete') continue
       if (!entry) this.synced.set(row.id, row) // no local edits: the cached row is the server copy
-      const n = await this.decryptRow(row)
-      if (!n) continue
+      const n = decoded[i]
+      if (!n) return
       // A queued push carries the version it builds on (it may have been rebased).
       if (entry?.kind === 'put') n.version = entry.body.baseVersion
       notes.set(n.id, n)
-    }
+    })
     this.emit({ notes, loading: notes.size === 0 })
     this.refreshPending()
   }

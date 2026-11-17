@@ -71,26 +71,56 @@ export function localRow(n: Note, ciphertext: string, iv: string): EncryptedNote
   }
 }
 
-/** Toggle the `index`-th task checkbox in Markdown (ignoring fenced code). */
-export function toggleTask(body: string, index: number): string {
-  const lines = body.split('\n')
+/**
+ * A checklist line: "- [ ]", "* [x]", "1. [ ]", also inside "> " quotes. The box must be followed
+ * by a space or the end of the line, the same rule the editor uses to draw a checkbox.
+ */
+const TASK_LINE = /^(\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+)\[([ xX])\](?=\s|$)/
+const FENCE = /^\s{0,3}(`{3,}|~{3,})/
+
+/** Calls `fn` with each checklist line's index and match, in order, skipping fenced code. */
+function eachTaskLine(lines: string[], fn: (i: number, m: RegExpMatchArray) => boolean | void) {
   let fence: string | null = null
-  let seen = 0
   for (let i = 0; i < lines.length; i++) {
-    const fenceMatch = lines[i].match(/^\s{0,3}(`{3,}|~{3,})/)
+    const fenceMatch = lines[i].match(FENCE)
     if (fenceMatch) {
       if (!fence) fence = fenceMatch[1][0]
       else if (fenceMatch[1][0] === fence) fence = null
       continue
     }
     if (fence) continue
-    const m = lines[i].match(/^(\s*(?:>\s*)*(?:[-*+]|\d+[.)])\s+)\[([ xX])\]/)
-    if (!m) continue
-    if (seen++ === index) {
-      const mark = m[2] === ' ' ? 'x' : ' '
-      lines[i] = `${m[1]}[${mark}]${lines[i].slice(m[0].length)}`
-      return lines.join('\n')
-    }
+    const m = lines[i].match(TASK_LINE)
+    if (m && fn(i, m) === false) return
   }
-  return body
+}
+
+/** Toggle the `index`-th task checkbox in Markdown (ignoring fenced code). */
+export function toggleTask(body: string, index: number): string {
+  const lines = body.split('\n')
+  let seen = 0
+  let changed = false
+  eachTaskLine(lines, (i, m) => {
+    if (seen++ !== index) return
+    const mark = m[2] === ' ' ? 'x' : ' '
+    lines[i] = `${m[1]}[${mark}]${lines[i].slice(m[0].length)}`
+    changed = true
+    return false
+  })
+  return changed ? lines.join('\n') : body
+}
+
+/**
+ * The Markdown to render for a note, so the card shows a checkbox for every line the editor
+ * does (and `toggleTask` counts): an empty item ("- [ ]" with nothing after it) needs a
+ * trailing space for the Markdown renderer to treat it as a task.
+ */
+export function withRenderableTasks(body: string): string {
+  const lines = body.split('\n')
+  let changed = false
+  eachTaskLine(lines, (i, m) => {
+    if (lines[i].length !== m[0].length) return
+    lines[i] += ' '
+    changed = true
+  })
+  return changed ? lines.join('\n') : body
 }

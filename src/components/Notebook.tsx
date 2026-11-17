@@ -51,7 +51,7 @@ function readLayout(): Layout {
 
 export function Notebook({ dek }: { dek: CryptoKey }) {
   const { t, lang, setLang } = useI18n()
-  const { email, lock, signOut, attachments } = useVault()
+  const { email, lock, signOut, attachments, resumed } = useVault()
   const attachmentsState = useMemo(() => ({ dek, enabled: attachments }), [dek, attachments])
   // Decrypted images live only while the notebook is unlocked.
   useEffect(() => clearAttachments, [dek])
@@ -77,7 +77,8 @@ export function Notebook({ dek }: { dek: CryptoKey }) {
   // The grid follows the search box after a short pause, so results glide into place instead of flickering per keystroke.
   const [appliedQuery, setAppliedQuery] = useState('')
   const updates = useUpdates()
-  const [revealing, setRevealing] = useState(() => !prefersReducedMotion())
+  // Only after unlocking by hand: opening with the kept key shows the notes as they are.
+  const [revealing, setRevealing] = useState(() => !resumed && !prefersReducedMotion())
   const searchRef = useRef<HTMLInputElement>(null)
   const navRef = useRef<HTMLDivElement>(null)
   /** The two lists as displayed, for drag-and-drop reordering. */

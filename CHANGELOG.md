@@ -12,6 +12,7 @@ All notable changes to NoteFlare are recorded here. The format follows [Keep a C
 
 ### Changed
 
+- The app opens straight to your notes from the copy on this device, without a "Decrypting your notes…" or "Loading…" screen first; it syncs in the background, and offline it keeps working and syncs once you're back online. With "Keep me unlocked" it skips the unlock animation too.
 - Notes open ready to type: the Edit/Preview switch is gone, since checklists now show as checkboxes while you edit. Note cards in the grid still show the formatted note, images included.
 - A new note starts with the cursor in the title; press Enter (Next on phones) to move to the text.
 - On phones, the note's last-edited date and time sit in the editor's top bar instead of above the title.
@@ -19,6 +20,7 @@ All notable changes to NoteFlare are recorded here. The format follows [Keep a C
 
 ### Fixed
 
+- Ticking checklist items on a note card is reliable again: a tick right after another one (or while the note was saving) could open the note instead, and an empty checklist item made the boxes after it tick the wrong line. Card checkboxes are now the same circles as in the editor, lined up with their text.
 - On iPhone, tapping New note, or the text of a note you are reading, now opens the keyboard in the installed app.
 - On iPhone, tapping the passphrase field on the unlock screen now opens the keyboard: the field is no longer focused automatically on touch devices, which left it "focused" with no keyboard and ignored the tap.
 

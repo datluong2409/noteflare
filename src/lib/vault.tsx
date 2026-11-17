@@ -6,7 +6,8 @@ import { keepOfflineCopy } from './pwa'
 import { transition } from './motion'
 import { watchIdle } from './idleLock'
 import { createVault, rewrapVault, unlockWithPassphrase, unlockWithRecovery } from './crypto'
-import { expiryFor, stillValid, type RememberFor } from './remember'
+import { expiryFor, startFromDevice, stillValid, type RememberFor } from './remember'
+import { loadNotebook } from './lazy'
 
 const IDLE_LOCK_MS = 15 * 60 * 1000
 const SIGN_OUT_CHANNEL = 'noteflare:sign-out'
@@ -50,6 +51,8 @@ interface VaultState {
   dek: CryptoKey | null
   /** The key is kept on this device ("stay unlocked"), so there is no idle auto-lock. */
   remembered: boolean
+  /** This session opened with the kept key, without the user unlocking (no unlock animation). */
+  resumed: boolean
   /** Create a vault and return the recovery code for the user to store. */
   setup(passphrase: string): Promise<string>
   /** Call once the user confirms they saved the recovery code. */
@@ -72,7 +75,10 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const [attachments, setAttachments] = useState(false)
   const [dek, setDek] = useState<CryptoKey | null>(null)
   const [remembered, setRemembered] = useState(false)
+  const [resumed, setResumed] = useState(false)
   const record = useRef<VaultRecord | null>(null)
+  /** `record` came from the server in this session, not only from this device's copy. */
+  const vaultChecked = useRef(false)
   const pendingDek = useRef<CryptoKey | null>(null)
 
   /** Start unlocked when this device was told to keep the key and it hasn't expired. */
@@ -86,42 +92,72 @@ export function VaultProvider({ children }: { children: ReactNode }) {
     keepOfflineCopy()
     setDek(rec.key)
     setRemembered(true)
+    setResumed(true)
     setStatus('unlocked')
     return true
   }
 
   useEffect(() => {
     ;(async () => {
-      const cached = await localStore.getMeta()
+      const [cached, localVault, kept] = await Promise.all([
+        localStore.getMeta(),
+        localStore.getVault(),
+        localStore.getRemembered(),
+      ])
+      // Open from what this device kept right away (notes, or the lock screen); the server is asked
+      // in the background, and the notes sync once it answers.
+      const local = startFromDevice(cached, !!localVault, kept)
+      if (local && cached && localVault) {
+        record.current = localVault
+        setEmail(cached.email)
+        if (local === 'unlocked' && kept) {
+          void loadNotebook().catch(() => {})
+          keepOfflineCopy()
+          setDek(kept.key)
+          setRemembered(true)
+          setResumed(true)
+        } else if (kept) {
+          void localStore.clearRemembered() // expired, or another account's
+        }
+        setStatus(local)
+      }
       try {
         const me = await api.me()
         // Another account signed in on this browser: its cache must not mix with ours.
-        if (cached?.email && cached.email !== me.email) await localStore.clear()
+        if (cached?.email && cached.email !== me.email) {
+          await localStore.clear()
+          if (local) return location.reload() // start again with nothing of the other account's on screen
+        }
         await localStore.setMeta({ email: me.email, hasVault: me.hasVault })
         setEmail(me.email)
+        setOffline(false)
         setAttachments(!!me.attachments)
-        if (!me.hasVault) return setStatus('setup')
+        if (!me.hasVault) {
+          // The server has no vault (any more): what this device kept can't be used.
+          if (local) {
+            await localStore.clearRemembered()
+            setDek(null)
+            setRemembered(false)
+            setResumed(false)
+          }
+          return setStatus('setup')
+        }
         record.current = await api.getVault()
+        vaultChecked.current = true
         await localStore.setVault(record.current)
+        if (local) return
         if (await restoreRemembered(me.email)) return
         setStatus('locked')
       } catch (e) {
-        if (e instanceof ApiError) {
-          if (e.status !== 401) return setStatus('error')
+        if (e instanceof ApiError && e.status === 401) {
+          // Already in the notes: stay; sync shows that the session needs signing in again.
+          if (local === 'unlocked') return
           const reason = (e.body as { reason?: string } | null)?.reason
           return setStatus(reason === 'access_not_set_up' ? 'access-missing' : 'unauthorized')
         }
-        // No connection: unlock from the wrapped keys kept on this device.
-        const vault = await localStore.getVault()
-        if (cached?.email && vault) {
-          record.current = vault
-          setEmail(cached.email)
-          setOffline(true)
-          if (await restoreRemembered(cached.email)) return
-          setStatus('locked')
-        } else {
-          setStatus('offline-empty')
-        }
+        // No connection (or the server failed): keep going from this device; sync catches up later.
+        if (local) return setOffline(true)
+        setStatus(e instanceof ApiError ? 'error' : 'offline-empty')
       }
     })()
   }, [])
@@ -129,6 +165,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const lock = useCallback(() => {
     void localStore.clearRemembered() // locking by hand also forgets the key kept on this device
     setRemembered(false)
+    setResumed(false)
     setDek(null)
     pendingDek.current = null
     setStatus((s) => (s === 'unlocked' ? 'locked' : s))
@@ -176,10 +213,20 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   const unlock = useCallback(async (passphrase: string, remember?: RememberFor | null) => {
     if (!record.current) record.current = await api.getVault()
-    const key = await unlockWithPassphrase(record.current, passphrase)
+    const key = await unlockWithPassphrase(record.current, passphrase).catch(async (err) => {
+      // This device's copy may predate a passphrase change made elsewhere: try the server's.
+      if (vaultChecked.current) throw err
+      const fresh = await api.getVault().catch(() => null)
+      if (!fresh || fresh.version === record.current?.version) throw err
+      record.current = fresh
+      vaultChecked.current = true
+      await localStore.setVault(fresh)
+      return unlockWithPassphrase(fresh, passphrase)
+    })
     keepOfflineCopy()
     const kept = await keepKey(key, remember)
     transition(() => {
+      setResumed(false)
       setRemembered(kept)
       setDek(key)
       setStatus('unlocked')
@@ -189,6 +236,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
   const saveRewrap = useCallback(
     async (secret: { passphrase: string } | { recoveryCode: string }, next: string) => {
       record.current = await api.getVault() // always start from the latest copy before overwriting
+      vaultChecked.current = true
       const res = await rewrapVault(record.current, secret, next)
       const { version } = await api.putVault(res.record)
       record.current = { ...res.record, version }
@@ -205,6 +253,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
       const key = await saveRewrap({ recoveryCode: code }, newPassphrase)
       const kept = await keepKey(key, remember)
       transition(() => {
+        setResumed(false)
         setRemembered(kept)
         setDek(key)
         setStatus('unlocked')
@@ -243,7 +292,7 @@ export function VaultProvider({ children }: { children: ReactNode }) {
 
   return (
     <VaultContext.Provider
-      value={{ status, email, offline, attachments, dek, remembered, setup, finishSetup, unlock, recover, changePassphrase, lock, signOut }}
+      value={{ status, email, offline, attachments, dek, remembered, resumed, setup, finishSetup, unlock, recover, changePassphrase, lock, signOut }}
     >
       {children}
     </VaultContext.Provider>

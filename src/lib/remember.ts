@@ -27,3 +27,18 @@ export function stillValid(rec: RememberedKey | null, email: string, now = Date.
   // An expiry further out than any option we offer means the clock was moved back: don't trust it.
   return rec.expiresAt > now && rec.expiresAt - now <= LONGEST_MS
 }
+
+/**
+ * How the app can open from what this device kept, without waiting for the server:
+ * straight into the notes with a kept key, at the lock screen with only the wrapped keys,
+ * or not at all (nothing kept, so the server has to answer first).
+ */
+export function startFromDevice(
+  meta: { email: string; hasVault: boolean } | null,
+  hasLocalVault: boolean,
+  rec: RememberedKey | null,
+  now = Date.now(),
+): 'unlocked' | 'locked' | null {
+  if (!meta?.email || !meta.hasVault || !hasLocalVault) return null
+  return stillValid(rec, meta.email, now) ? 'unlocked' : 'locked'
+}
